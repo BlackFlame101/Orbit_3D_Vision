@@ -1,0 +1,11 @@
+# Add the allocated Fly app name before deploying.
+# Private machine configuration. Reach port 3000 with fly proxy.
+[build]
+  dockerfile = "Dockerfile"
+
+[[mounts]]
+  source = "orbit_data"
+  destination = "/data"
+
+[env]
+  U2NET_HOME = "/data/models"

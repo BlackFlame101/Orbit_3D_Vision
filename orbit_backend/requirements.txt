@@ -1,0 +1,13 @@
+fastapi==0.162.5
+uvicorn==0.54.0
+python-multipart==0.0.32
+httpx==0.28.1
+rembg==2.0.65
+onnxruntime==1.23.2
+# Pillow and numpy are already provided by the existing reconstruction environment.
+psutil==7.2.2
+numpy==2.2.6
+Pillow==12.3.0
+scipy==1.15.3
+trimesh==5.2.1
+xatlas==0.0.11
