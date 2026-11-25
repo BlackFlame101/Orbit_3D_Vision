@@ -1,12 +1,14 @@
 """Offline orthographic RGB bake. Pixel coordinates refer to pixel centers, Y down.
 Camera rows map object XYZ to image x, image y, and depth increasing away.
-Each camera requires independently measured object XYZ / image XY landmarks.
+Measured cameras use independent landmarks; approximate cameras use silhouette alignment.
 """
 from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 from PIL import Image
-from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import binary_closing, distance_transform_edt
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 import trimesh
 from .uv_layout import layout
 from .texture_validator import read_mesh, require, validate
@@ -18,7 +20,8 @@ class Camera:
     axes: np.ndarray
     scale: float
     offset: np.ndarray
-    landmarks: np.ndarray  # N x 5: XYZ, pixel XY
+    landmarks: np.ndarray | None  # N x 5: XYZ, pixel XY for measured calibration
+    silhouette_iou: float | None = None
 
     def project(self, points):
         q = points @ self.axes.T
@@ -27,8 +30,11 @@ class Camera:
     def check(self):
         require(self.rgba.dtype==np.uint8 and self.rgba.ndim==3 and self.rgba.shape[2]==4, 'Expected uint8 RGBA')
         require(self.axes.shape==(3,3) and np.allclose(self.axes@self.axes.T,np.eye(3),atol=1e-6) and np.isclose(np.linalg.det(self.axes),1), 'Invalid camera axes')
-        require(np.isfinite(self.scale) and self.scale>0 and np.shape(self.offset)==(2,), 'Invalid camera scale/offset')
+        require(np.isfinite(self.scale) and self.scale>0 and np.shape(self.offset)==(2,) and np.isfinite(self.offset).all(), 'Invalid camera scale/offset')
         pts = self.landmarks
+        if pts is None:
+            require(self.silhouette_iou is not None and .65 <= self.silhouette_iou <= 1, 'Weak automatic silhouette alignment')
+            return
         require(pts.ndim==2 and pts.shape[1]==5 and len(pts)>=3 and np.isfinite(pts).all() and np.linalg.matrix_rank(pts[:,3:]-pts[0,3:])==2, 'Need noncollinear landmarks')
         error = np.linalg.norm(self.project(pts[:,:3])[0]-pts[:,3:],axis=1)
         require(error.max()<=1.5,'Camera landmark mismatch')
@@ -86,7 +92,15 @@ def bake(source, output, cameras, size=512, *, progress=lambda stage: None, uv_c
     progress('projection')
     pixels = np.full((size,size,3),128,np.uint8)
     occupied = np.zeros((size,size),bool)
-    covered = 0
+    observed = np.zeros((size,size),bool)
+    automatic = any(camera.landmarks is None for camera in cameras)
+    if automatic:
+        # UV seams duplicate vertex indices, so connectivity identifies independent charts.
+        starts=indices[:,[0,0]].ravel()
+        ends=indices[:,1:].ravel()
+        graph=coo_matrix((np.ones(len(starts),dtype=bool),(starts,ends)),shape=(len(uv),len(uv)))
+        _,charts=connected_components(graph,directed=False)
+        chart_pixels=np.full((size,size),-1,dtype=np.int32)
     atlas_xy = uv*size-.5
     for index in raster_candidates(atlas_xy,indices,size,size):
         face,chart = faces[index],indices[index]
@@ -94,6 +108,7 @@ def bake(source, output, cameras, size=512, *, progress=lambda stage: None, uv_c
         if hit is None: continue
         y,x,b = hit
         occupied[y,x] = True
+        if automatic: chart_pixels[y,x]=charts[chart[0]]
         tri = vertices[face].astype(float)
         normal = np.cross(tri[1]-tri[0],tri[2]-tri[0])
         normal /= max(np.linalg.norm(normal),1e-20)
@@ -111,14 +126,31 @@ def bake(source, output, cameras, size=512, *, progress=lambda stage: None, uv_c
             slope = -(normal@camera.axes[:2].T)/(normal@camera.axes[2]*camera.scale)
             at_pixel = z + (np.column_stack((ix,iy))-xy)@slope
             sample = camera.rgba[iy[valid],ix[valid]]
-            ok = (sample[:,3]==255)&(np.abs(at_pixel[valid]-depth[iy[valid],ix[valid]])<1e-5*max(1,np.ptp(tri)))
+            tolerance=1e-5*max(1,np.ptp(tri))
+            if camera.landmarks is None:
+                # Subpixel differences between neighboring reconstructed triangles can
+                # otherwise discard visible samples. Keep tolerance within one photo pixel.
+                tolerance=max(tolerance,1/camera.scale)
+            # rembg often emits alpha 254 for opaque foreground interiors.
+            # Accept near-opaque pixels while excluding the blended silhouette boundary.
+            ok = (sample[:,3]>=250)&(np.abs(at_pixel[valid]-depth[iy[valid],ix[valid]])<tolerance)
             k = valid[ok]
             colors[k] += sample[ok,:3]*angle**4
             weights[k] += angle**4
         seen = weights>0
         pixels[y[seen],x[seen]] = np.rint(colors[seen]/weights[seen,None]).astype(np.uint8)
-        covered += seen.sum()
+        observed[y[seen],x[seen]] = True
+    covered = observed.sum()
     require(covered>0,'No visible calibrated texture samples')
+    filled=0
+    if automatic:
+        # Repair small sampling holes only within the same UV chart. Keep large
+        # unseen areas neutral and report filled pixels separately from observations.
+        distance,nearest=distance_transform_edt(~observed,return_indices=True)
+        holes=(binary_closing(observed,structure=np.ones((3,3),bool)) & occupied & ~observed
+               & (distance<=1.5) & (chart_pixels==chart_pixels[nearest[0],nearest[1]]))
+        pixels[holes]=pixels[nearest[0][holes],nearest[1][holes]]
+        filled=int(holes.sum())
     dist,nearest = distance_transform_edt(~occupied,return_indices=True)
     gutter = (~occupied)&(dist<=2)
     pixels[gutter] = pixels[nearest[0][gutter],nearest[1][gutter]]
@@ -134,7 +166,8 @@ def bake(source, output, cameras, size=512, *, progress=lambda stage: None, uv_c
     try: validate(source,output)
     except Exception:
         output.unlink();raise
-    return {'uvCacheHit':cache_hit,'triangles':len(faces),'atlas_texels':int(occupied.sum()),'observed_texels':int(covered)}
+    return {'uvCacheHit':cache_hit,'triangles':len(faces),'atlas_texels':int(occupied.sum()),'observed_texels':int(covered),
+            'observedFraction':float(covered/occupied.sum()),'filled_texels':filled}
 
 if __name__ == '__main__':
     import argparse

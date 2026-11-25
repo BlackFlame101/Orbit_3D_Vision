@@ -25,6 +25,9 @@ class Config:
     allowed_origins: tuple = ('http://127.0.0.1:3000', 'http://localhost:3000', 'http://127.0.0.1:8000', 'http://localhost:8000')
 
     def __post_init__(self):
+        public_origin = os.environ.get('ORBIT_PUBLIC_ORIGIN')
+        if public_origin:
+            self.allowed_origins = (*self.allowed_origins, public_origin)
         self.root = self.root.resolve()
         protected = [PROJECT / p for p in ('data', 'phase0_outputs', 'phase2_outputs', 'phase3_outputs', 'phase4_outputs', 'web')]
         if self.root == PROJECT or any(self.root == p or self.root.is_relative_to(p) for p in protected):

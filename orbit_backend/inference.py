@@ -12,7 +12,7 @@ from .config import PROJECT
 
 MODEL = {'model':'tencent/Hunyuan3D-2mv','subfolder':'hunyuan3d-dit-v2-mv','variant':'fp16',
          'execution':'CPU offloading + CUDA','steps':30,'octree':256,'chunks':20000,'remove_bg':False}
-STAGES = ('queued','loading_model','generating','saving_glb','validating_glb','completed')
+STAGES = ('queued','loading_model','generating','extracting_mesh','saving_glb','validating_glb','completed')
 
 
 def sha256(data):
@@ -137,7 +137,8 @@ class HunyuanRunner:
                         stage=line.strip().split(':',1)[1]
                         failure_stage=stage
                         # Completion belongs exclusively to validated DB publication.
-                        if stage in ('loading_model','generating','saving_glb'):on_stage(stage)
+                        if stage in ('loading_model','generating','extracting_mesh','saving_glb') or stage.startswith('sampling:'):
+                            on_stage(stage)
                 code=process.wait()
                 log.write(f'ORBIT_EXIT: {json.dumps({"exitCode":code,"failureStage":failure_stage if code else None,"classification":classification if code else "success"})}\n');log.flush()
                 if code!=0:

@@ -122,6 +122,8 @@ class Store:
             photos = [dict(p) for p in conn.execute('SELECT * FROM photos WHERE session_id=? ORDER BY created,id', (sid,))]
             versions = [dict(v) for v in conn.execute('SELECT * FROM versions WHERE session_id=? ORDER BY created,id', (sid,))]
             jobs = [dict(j) for j in conn.execute('SELECT * FROM jobs WHERE session_id=? ORDER BY created,id', (sid,))]
+            texture_metrics = {r['job_id']:json.loads(r['metrics']) for r in conn.execute(
+                'SELECT job_id,metrics FROM texture_artifacts WHERE session_id=?', (sid,))}
         for p in photos:
             p['url'] = f'/api/orbit/sessions/{sid}/photos/{p["id"]}/original'
             p['cutoutUrl'] = f'/api/orbit/sessions/{sid}/photos/{p["id"]}/cutout' if p['cutout'] else None
@@ -142,6 +144,8 @@ class Store:
                 manifest = json.loads(payload)
                 job.update(parentVersionId=manifest['parent'], resolution=manifest['resolution'],
                            sources=[v['name'] for v in manifest['views']])
+                if job['id'] in texture_metrics:
+                    job['textureMetrics'] = texture_metrics[job['id']]
             job.pop('session_id')
         active = [j for j in jobs if j['status'] in ('queued', 'running')]
         settings=json.loads(session['settings'])

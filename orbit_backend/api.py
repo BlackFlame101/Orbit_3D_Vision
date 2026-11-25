@@ -16,8 +16,8 @@ from .storage import Store, identifier, now, valid_id
 from .inference import fingerprint, runner_manifest, cached_result
 from .multiview import canonical_roles, selection_identity, write_snapshots, legacy_cached_result, MAPPING_REVISION, VIEW_INDICES
 
-SLOTS = ('front', 'left', 'back', 'right')
-Slot = Literal['front', 'left', 'back', 'right']
+SLOTS = ('front', 'left', 'back', 'right', 'top')
+Slot = Literal['front', 'left', 'back', 'right', 'top']
 
 
 class StrictModel(BaseModel):
@@ -36,7 +36,7 @@ class CalibrationFit(StrictModel):
 
 
 class SessionEdit(StrictModel):
-    budget: Literal[2, 3, 4] | None = None
+    budget: Literal[2, 3, 4, 5] | None = None
     settings: Settings | None = None
     selectedId: str | None = None
 
@@ -56,13 +56,13 @@ class MockRequest(StrictModel):
 
 class SelectedPhoto(StrictModel):
     photo_id: str
-    role: Literal['front','left','right']
+    role: Literal['front','left','back','right']
 
 
 class ReconstructionRequest(StrictModel):
     photo_id: str | None = None
     mode: Literal['front_only','multiview'] = 'front_only'
-    photos: list[SelectedPhoto] | None = Field(default=None,min_length=1,max_length=3)
+    photos: list[SelectedPhoto] | None = Field(default=None,min_length=1,max_length=4)
 
     @model_validator(mode='after')
     def validate_selection(self):

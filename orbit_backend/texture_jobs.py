@@ -26,10 +26,16 @@ class View(BaseModel):
     landmarks: list[tuple[float,float,float,float,float]] = Field(min_length=3,max_length=256)
 
 
+class AutomaticView(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    photo_id: str = Field(pattern='^[a-f0-9]{32}$')
+    mode: Literal['automatic']
+
+
 class Request(BaseModel):
     model_config = ConfigDict(extra='forbid')
     resolution: Literal[64,128,256,512,1024,2048]
-    views: list[View] = Field(min_length=1,max_length=4)
+    views: list[View | AutomaticView] = Field(min_length=1,max_length=5)
 
 
 def digest(data):
@@ -41,7 +47,7 @@ def canonical(data):
 
 
 def implementation():
-    files = ('photo_texture.py','texture_validator.py','texture_jobs.py','texture_child.py','uv_layout.py')
+    files = ('photo_texture.py','texture_validator.py','texture_jobs.py','texture_child.py','uv_layout.py','texture_alignment.py','guidance.py')
     return {'code':{n:digest(Path(__file__).with_name(n).read_bytes()) for n in files},
             'packages':{n:version(n) for n in ('numpy','scipy','Pillow','xatlas','trimesh')}}
 
@@ -97,7 +103,12 @@ def submit(store,sid,vid,body):
             sha=digest(cut)
             if sha!=row['confirmed_sha256'] or sha in cutouts: raise ValueError('Conflicting or changed cutout')
             spec=selected.model_dump(mode='json')
-            camera(cut,spec)
+            if isinstance(selected, AutomaticView):
+                from .texture_alignment import TEXTURE_DIRECTIONS
+                if row['slot'] not in TEXTURE_DIRECTIONS:
+                    raise ValueError('Automatic alignment requires an assigned capture direction')
+            else:
+                camera(cut,spec)
             manifest['views'].append(dict(spec,role=row['slot'],name=row['name'],originalSha256=digest(raw),cutoutSha256=sha))
             snapshots.extend((raw,cut));roles.add(row['slot']);cutouts.add(sha)
         key=digest(canonical(manifest))
@@ -173,7 +184,10 @@ def execute(store,job):
             log.write(json.dumps({'exitCode':process.returncode})+'\n')
         if process.returncode:
             failure=run/'failure.json'
-            reason=json.loads(failure.read_text())['category'] if failure.exists() else ('memory' if process.returncode in (-1073741801,3221225495) else 'subprocess')
+            report=json.loads(failure.read_text()) if failure.exists() else {}
+            reason=report.get('category', 'memory' if process.returncode in (-1073741801,3221225495) else 'subprocess')
+            if reason=='calibration' and report.get('detail','').startswith('Automatic alignment too weak'):
+                raise TextureFailure('calibration: '+report['detail'])
             raise TextureFailure(f'{reason}: texture subprocess failed (exit {process.returncode})')
         with store.transaction() as c:
             parent=c.execute('SELECT model FROM versions WHERE id=? AND session_id=?',(manifest['parent'],job['session_id'])).fetchone()

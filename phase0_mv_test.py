@@ -85,13 +85,22 @@ def run_reconstruction(input_paths, outdir, seed=12345, steps=30, octree=256,
     emit("generating")
     # Run inference
     t1 = time.time()
+
+    def sampling_progress(step_index, _timestep, _outputs):
+        completed = min(steps, int(step_index)+1)
+        emit(f"sampling:{completed}")
+        if completed == steps:
+            emit("extracting_mesh")
+
     mesh = pipeline(
         image=images,
         num_inference_steps=steps,
         octree_resolution=octree,
         num_chunks=chunks,
         generator=torch.manual_seed(seed),
-        output_type="trimesh"
+        output_type="trimesh",
+        callback=sampling_progress,
+        callback_steps=1,
     )[0]
     infer_seconds = time.time() - t1
 

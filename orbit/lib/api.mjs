@@ -22,4 +22,4 @@ export function realGenerationProblem(state){
   if(state.settings?.seeds!==1||state.settings?.steps!==30||state.settings?.octree!==256)return 'Real generation requires one seed, 30 steps and octree 256.';
   return '';
 }
-export const JOB_STAGES={waiting_ram:'Waiting for free RAM',waiting_vram:'Waiting for free GPU memory',waiting_gpu_probe:'Waiting for GPU memory information',waiting_heavy_job:'Waiting for another memory-intensive job',queued:'Queued',loading_model:'Loading model',generating:'Generating geometry',saving_glb:'Saving GLB',validating_glb:'Validating GLB',completed:'Completed',failed:'Failed'};
+export const JOB_STAGES={waiting_ram:'Waiting for free RAM',waiting_vram:'Waiting for free GPU memory',waiting_gpu_probe:'Waiting for GPU memory information',waiting_heavy_job:'Waiting for another memory-intensive job',queued:'Queued',loading_model:'Loading model',generating:'Generating geometry',extracting_mesh:'Extracting mesh',saving_glb:'Saving GLB',validating_glb:'Validating GLB',completed:'Completed',failed:'Failed'};

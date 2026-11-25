@@ -1,14 +1,14 @@
-export const MODEL_ROLES=['front','left','right'];
-export const VIEW_CONVENTIONS={front:'Reference view',left:'Front clockwise 90°',right:'Front clockwise 270°'};
+export const MODEL_ROLES=['front','left','back','right'];
+export const VIEW_CONVENTIONS={front:'Reference view',back:'Opposite 180 degrees',left:'Front clockwise 90°',right:'Front clockwise 270°'};
 export function reconstructionSelection(state){
   const chosen=state.reconstructionPhotos||{};
-  return {front:Object.hasOwn(chosen,'front')?chosen.front:state.photos.find(p=>p.slot==='front')?.id||'',left:chosen.left||'',right:chosen.right||''};
+  return {front:Object.hasOwn(chosen,'front')?chosen.front:state.photos.find(p=>p.slot==='front')?.id||'',left:chosen.left||'',back:Object.hasOwn(chosen,'back')?chosen.back:state.photos.find(p=>p.slot==='back')?.id||'',right:chosen.right||''};
 }
 export function selectionProblem(state){
   const mode=state.reconstructionMode||'multiview',selected=reconstructionSelection(state);
   if(!['front_only','multiview'].includes(mode))return 'Choose a supported reconstruction mode.';
   if(!selected.front)return 'Select a confirmed front photograph.';
-  if(mode==='multiview'&&!selected.left&&!selected.right)return 'Multiview requires at least one confirmed side photograph.';
+  if(mode==='multiview'&&!selected.left&&!selected.back&&!selected.right)return 'Multiview requires at least one confirmed additional photograph.';
   const roles=mode==='front_only'?['front']:MODEL_ROLES.filter(r=>selected[r]);
   if(new Set(roles.map(r=>selected[r])).size!==roles.length)return 'Select a different photograph for each role.';
   for(const role of roles){

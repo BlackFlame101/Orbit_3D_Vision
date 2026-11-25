@@ -1,4 +1,4 @@
-import {reconstructionSelection} from './reconstruction.mjs';
+import {MODEL_ROLES,reconstructionSelection} from './reconstruction.mjs';
 import {realGenerationProblem,JOB_STAGES} from './api.mjs';
 
 export function readyForReview(p){
@@ -8,7 +8,7 @@ export function readyForReview(p){
 export function reviewWorkflow(state,health){
   const selection=reconstructionSelection(state);
   const multi=state.reconstructionMode!=='front_only';
-  const roles=multi?['front','left','right']:['front'];
+  const roles=multi?MODEL_ROLES:['front'];
   const selected=roles.map(r=>state.photos.find(p=>p.id===selection[r])).filter(Boolean);
   const pending=selected.filter(readyForReview);
   const result=(kind,label,hint='',photo=null,role=null)=>({kind,label,hint,photo,role,pending,selected});
@@ -25,8 +25,8 @@ export function reviewWorkflow(state,health){
   if(failed)return result('inspect','Review failed cutout',failed.error||'Inspect or replace the failed photo.',failed);
   if(pending.length)return result('review','Review '+pending.length+(pending.length===1?' photo':' photos'),'Check the background removal before generating.',pending[0]);
   if(selected.some(p=>!p.confirmed&&(p.status!=='ready'||!p.cutoutUrl)))return result('preparing','Preparing photos…','The CPU worker is preparing your selected cutouts.');
-  if(!selection.front||multi&&!selection.left&&!selection.right){
-    const needed=!selection.front?['front']:['left','right'];
+  if(!selection.front||multi&&!selection.left&&!selection.back&&!selection.right){
+    const needed=!selection.front?['front']:['left','back','right'];
     const p=state.photos.find(p=>needed.includes(p.slot));
     if(p)return result('select','Select '+p.slot+' view',realGenerationProblem(state),p,p.slot);
     const unassigned=state.photos.find(p=>!p.slot);

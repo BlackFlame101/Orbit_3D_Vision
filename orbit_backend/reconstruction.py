@@ -43,8 +43,20 @@ def execute(worker,job):
             publish(store,c,job,payload,store.path(cached['model']),cached['sha256'],True)
             return
     def stage(value):
+        milestones={'loading_model':15,'generating':25,'extracting_mesh':85,'saving_glb':90,'validating_glb':95}
+        if value.startswith('sampling:'):
+            step=value.removeprefix('sampling:')
+            total=identity['config']['steps']
+            if not step.isascii() or not step.isdecimal() or not 1<=int(step)<=total:
+                return
+            progress=25+int(55*int(step)/total)
+            value='generating'
+        elif value in milestones:
+            progress=milestones[value]
+        else:
+            return
         with store.transaction() as c:
-            c.execute('UPDATE jobs SET stage=?,updated=? WHERE id=?',(value,now(),job['id']))
+            c.execute("UPDATE jobs SET stage=?,progress=?,updated=? WHERE id=? AND status='running' AND progress<=?",(value,progress,now(),job['id'],progress))
             c.execute('UPDATE worker_status SET heartbeat=? WHERE id=1',(now(),))
     # Recover already-completed child outputs without repeating expensive inference.
     recovered=None

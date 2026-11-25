@@ -6,8 +6,8 @@ from pathlib import Path
 
 from .inference import fingerprint, sha256, file_digest
 
-ROLES = ('front', 'left', 'right')
-VIEW_INDICES = {'front': 0, 'left': 1, 'right': 3}
+ROLES = ('front', 'left', 'back', 'right')
+VIEW_INDICES = {'front': 0, 'left': 1, 'back': 2, 'right': 3}
 MAPPING_REVISION = 'hunyuan3d-2mv-cardinal-v1'
 
 
@@ -16,8 +16,8 @@ def canonical_roles(mode, roles):
     if mode not in ('front_only','multiview') or len(roles)!=len(set(roles)) or any(r not in ROLES for r in roles):
         raise ValueError('Unsupported reconstruction mode, duplicate role, or unknown model role.')
     selected=tuple(r for r in ROLES if r in roles)
-    if (mode=='front_only' and selected!=('front',)) or (mode=='multiview' and ('front' not in selected or not 2<=len(selected)<=3)):
-        raise ValueError('Use front_only with front, or multiview with front plus selected left/right views.')
+    if (mode=='front_only' and selected!=('front',)) or (mode=='multiview' and ('front' not in selected or not 2<=len(selected)<=4)):
+        raise ValueError('Use front_only with front, or multiview with front plus selected left/back/right views.')
     return selected
 
 

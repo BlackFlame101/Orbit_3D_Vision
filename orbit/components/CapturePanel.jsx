@@ -5,7 +5,7 @@ import ReconstructionSelection from './ReconstructionSelection';
 import {realGenerationProblem,JOB_STAGES} from '../lib/api.mjs';
 import {SLOT_NAMES, generationProblem} from '../lib/session.mjs';
 
-export default function CapturePanel({demo,state, dispatch, onFiles, onReview, onGenerate, onGenerateFixture, targetSlot, setTargetSlot, importing, connection, health, fixtures=[], fixture, setFixture, onRetry}) {
+export default function CapturePanel({onImportGLB,demo,state, dispatch, onFiles, onReview, onGenerate, onGenerateFixture, targetSlot, setTargetSlot, importing, connection, health, fixtures=[], fixture, setFixture, onRetry}) {
   const blocked = state.busy || importing;
   const file=useRef(null);
   const flow=reviewWorkflow(state,health);
@@ -19,9 +19,9 @@ export default function CapturePanel({demo,state, dispatch, onFiles, onReview, o
   }
   return <aside className="controls">
     <div className="panel-kicker">Reconstruction</div><h1>Capture budget</h1>
-    <Choices label="Capture budget" disabled={blocked} value={state.budget} options={[2,3,4].map(value=>({value,disabled:value<state.photos.length}))} onChange={value=>dispatch({type:'BUDGET',value})}/>
+    <Choices label="Capture budget" disabled={blocked} value={state.budget} options={[2,3,4,5].map(value=>({value,disabled:value<state.photos.length}))} onChange={value=>dispatch({type:'BUDGET',value})}/>
     <p className="captured-count">{flow.selected.filter(p=>p.confirmed).length} of {flow.selected.length} selected confirmed</p><ReconstructionSelection state={state} dispatch={dispatch} disabled={blocked}/>
-    <button popoverTarget="advanced-settings">Advanced settings</button><div popover="auto" id="advanced-settings">
+    <div className="capture-tools"><button popoverTarget="advanced-settings">Advanced settings</button><button disabled={state.busy} onClick={onImportGLB}>Open GLB</button></div><div popover="auto" id="advanced-settings">
     <p>One seed per reconstruction</p>
     {Object.entries({steps:[20,30,50],octree:[256,384],seed:[...new Set([12345,2027,31415,state.settings.seed??12345])]}).map(([key,values])=><Choices key={key} label={key} disabled={blocked} value={state.settings[key]??12345} options={values.map(value=>({value}))} onChange={value=>dispatch({type:'SETTINGS',key,value})}/>)}</div>
     {demo&&<> <Choices label="Cached viewer fixture" disabled={blocked} options={fixtures.map(f=>({value:f.id,label:f.label}))} value={fixture} onChange={setFixture}/>

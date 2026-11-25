@@ -21,6 +21,8 @@ from .worker import worker_lock
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--enable-gpu',action='store_true')
+    parser.add_argument('--port', type=int, default=3000)
+    parser.add_argument('--production', action='store_true')
     args=parser.parse_args()
     config=Config()
     store=Store(config)
@@ -32,7 +34,7 @@ def main():
     if args.enable_gpu:
         from .inference import runner_manifest
         runner_manifest()
-    for port in (8000,3000):
+    for port in (8000,args.port):
         with socket.socket() as sock:
             sock.bind(('127.0.0.1',port))
     with ExitStack() as check:
@@ -47,8 +49,9 @@ def main():
     env={**os.environ,'ORBIT_ENABLE_GPU_JOBS':str(int(args.enable_gpu)),'ORBIT_DATA_DIR':str(store.root),
          'OMP_NUM_THREADS':os.environ.get('OMP_NUM_THREADS','2'),'PYTHONUNBUFFERED':'1'}
     python=sys.executable
+    frontend_mode = ['start'] if args.production else ['dev', '--webpack']
     services={'api':([python,'-m','uvicorn','orbit_backend.api:app_factory','--factory','--host','127.0.0.1','--port','8000'],PROJECT),
-              'frontend':([node,str(next_cli),'dev','--webpack','--hostname','127.0.0.1','--port','3000'],frontend)}
+              'frontend':([node,str(next_cli),*frontend_mode,'--hostname','127.0.0.1','--port',str(args.port)],frontend)}
     for role in (['cpu','gpu'] if args.enable_gpu else ['cpu']):
         cmd=[python,'-m','orbit_backend.worker','--role',role,'--stop-file',str(drain)]
         if role=='gpu':cmd.append('--allow-gpu')
@@ -61,7 +64,7 @@ def main():
                 children[name]=subprocess.Popen(cmd,cwd=cwd,env=env,stdout=stream,stderr=subprocess.STDOUT,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=='nt' else 0)
             print(f'Started {name} (PID {children[name].pid})',flush=True)
-        print('Open http://127.0.0.1:3000 when ready. Press Ctrl+C here to drain and stop Orbit.',flush=True)
+        print(f'Open http://127.0.0.1:{args.port} when ready. Press Ctrl+C here to drain and stop Orbit.',flush=True)
         while not stop.wait(.5) and not drain.exists():
             for name,proc in children.items():
                 if proc.poll() is not None:raise SystemExit(f'{name} exited ({proc.returncode}). See {logs}')

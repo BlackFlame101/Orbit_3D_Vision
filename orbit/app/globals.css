@@ -179,3 +179,30 @@
 }
 .workspace #progress span,.workspace #progress small{color:#bac8cd}
 .workspace #progress .spinner{border-color:#40534c;border-top-color:#9cecbc}
+
+.tiles.has-overhead{grid-template-columns:repeat(3,minmax(0,1fr))}
+.loaded .tiles.has-overhead{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:760px){.workspace[data-mobile=capture] .tiles.has-overhead{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(100px,auto)}}
+
+.capture-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.workspace .capture-tools button{
+  flex:1;min-height:36px;padding:7px 10px;border:1px solid #52645b;
+  border-radius:8px;background:#26332e;color:#e1eae4;font-size:13px;font-weight:600;
+  cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s;
+}
+.workspace .capture-tools button:not(:disabled):hover{background:#35483f;border-color:#8cb59a}
+.workspace .capture-tools button:focus-visible{outline:2px solid #a5e8bb;outline-offset:2px}
+.workspace .capture-tools button:disabled{opacity:.45;cursor:default}
+@media(max-width:760px){.workspace[data-mobile=model] .studio-center.empty .stage{display:flex}}
+
+.workspace .viewer-tools{
+  top:12px;right:12px;left:auto;transform:none;
+  flex-direction:column;align-items:stretch;gap:3px;padding:4px;
+}
+.workspace .viewer-tools button{
+  min-height:32px;padding:5px 8px;font-size:12px;white-space:nowrap;
+}
+@media(max-width:760px){
+  .workspace .viewer-tools{top:8px;right:8px}
+  .workspace .viewer-tools button{min-height:30px;padding:4px 6px;font-size:11px}
+}

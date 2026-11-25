@@ -17,6 +17,19 @@ export default function Orbit(){
   const [tab,setTab]=useState('studio'),[targetSlot,setTargetSlot]=useState('front'),[reviewId,setReviewId]=useState(null);
   const [connection,setConnection]=useState('connecting'),[working,setWorking]=useState(false),[health,setHealth]=useState(null),[fixtures,setFixtures]=useState([]),[fixture,setFixture]=useState('perfume');
   const [demo,setDemo]=useState(false),[mobile,setMobile]=useState("capture");
+  const [imported,setImported]=useState(null);
+  const glbInput=useRef(null);
+  const previousSession=useRef({id:state.id,selected:state.selectedId});
+  useEffect(()=>{
+    const previous=previousSession.current;
+    if((previous.id&&previous.id!==state.id)||(previous.selected!==state.selectedId&&state.selectedId))setImported(null);
+    previousSession.current={id:state.id,selected:state.selectedId};
+  },[state.id,state.selectedId]);
+  function openGLB(file){
+    if(!file)return;
+    if(!file.name.toLowerCase().endsWith('.glb')||file.size>64*1024*1024||file.size<20){dispatch({type:'MESSAGE',text:'Choose a GLB file up to 64 MB.'});return;}
+    setImported(file);setMobile('model');
+  }
   const lock=useRef(false),revision=useRef(0),mounted=useRef(true);
   function accept(session,text){dispatch({type:'LOAD',session,text});}
   async function connect(signal){
@@ -29,7 +42,7 @@ export default function Orbit(){
       localStorage.setItem(SESSION_KEY,session.id);
       let saved;
       try{saved=JSON.parse(localStorage.getItem('orbit-source-views:'+session.id));}catch{}
-      const defaults=Object.fromEntries(session.photos.filter(p=>['front','left','right'].includes(p.slot)).map(p=>[p.slot,p.id]));
+      const defaults=Object.fromEntries(session.photos.filter(p=>['front','left','back','right'].includes(p.slot)).map(p=>[p.slot,p.id]));
       accept({...session,reconstructionMode:saved?.mode==='front_only'?'front_only':'multiview',reconstructionPhotos:saved?.photos||defaults});
       setConnection('ready');
       const [info,available]=await Promise.all([api('/health',{signal}),api('/fixtures',{signal})]);
@@ -78,7 +91,7 @@ export default function Orbit(){
         if(index===0&&!session.photos.some(p=>p.slot===slot))body.append('slot',slot);
         try{const result=await api(`/sessions/${state.id}/photos`,{method:'POST',body});session=result.session;accept(session,'');
           const added=session.photos.find(p=>p.id===result.photo_id);
-          if(added&&['front','left','right'].includes(added.slot)&&(added.slot==='front'||state.reconstructionMode==='multiview')){
+          if(added&&['front','left','back','right'].includes(added.slot)&&(added.slot==='front'||state.reconstructionMode==='multiview')){
             dispatch({type:'RECONSTRUCTION_PHOTO',role:added.slot,id:added.id});
           }}
         catch(error){errors.push(`${file.name}: ${error.message}`);}
@@ -105,7 +118,7 @@ export default function Orbit(){
   const review=state.photos.find(p=>p.id===reviewId),blocked=working||connection!=='ready';
   return <div className="orbit-app"><header><a className="brand" href="./"><span className="mark" aria-hidden="true">&#9682;</span>orbit<span className="brand-note">PHOTO TO FORM</span></a><nav className="segmented" role="tablist" aria-label="Workspace">{['studio','lab'].map(t=><button key={t} className={`tab ${tab===t?'active':''}`} id={`tab-${t}`} role="tab" aria-selected={tab===t} aria-controls={t} tabIndex={tab===t?0:-1} onKeyDown={tabKey} onClick={()=>setTab(t)}>{t==='studio'?'Studio':'Research Lab'}</button>)}</nav><button aria-pressed={demo} onClick={()=>setDemo(!demo)}>Demo mode</button><span className="demo"><i/>{health?.gpuSubmissionEnabled?'Local Hunyuan':'Local preview - GPU disabled'}</span></header>
     {connection==='error'&&<div className="connection-notice" role="alert">{state.message}<button onClick={()=>connect()}>Reconnect local API</button></div>}
-    <main className="workspace" data-mobile={mobile} id="studio" role="tabpanel" aria-labelledby="tab-studio" hidden={tab!=='studio'}><CapturePanel demo={demo} state={state} dispatch={action} onFiles={addFiles} onReview={setReviewId} onGenerate={generate} onGenerateFixture={generateFixture} targetSlot={targetSlot} setTargetSlot={setTargetSlot} importing={blocked} connection={connection} health={health} fixtures={fixtures} fixture={fixture} setFixture={setFixture} onRetry={retry}/><div className={"studio-center "+(state.selectedId?"loaded":"empty")}><ModelStage state={state}/><PhotoTiles state={state} blocked={blocked||state.busy} upload={addFiles} review={setReviewId} dispatch={action}/></div><SessionHistory state={state} dispatch={action} onReview={setReviewId} onReset={reset} targetSlot={targetSlot} setTargetSlot={setTargetSlot} importing={blocked}/></main>{tab==="studio"&&<nav className="phone-nav" aria-label="Studio panels">{["capture","model","versions"].map(t=><button key={t} aria-pressed={mobile===t} onClick={()=>setMobile(t)}>{t}</button>)}</nav>}
+    <main className="workspace" data-mobile={mobile} id="studio" role="tabpanel" aria-labelledby="tab-studio" hidden={tab!=='studio'}><CapturePanel onImportGLB={()=>glbInput.current?.click()} demo={demo} state={state} dispatch={action} onFiles={addFiles} onReview={setReviewId} onGenerate={generate} onGenerateFixture={generateFixture} targetSlot={targetSlot} setTargetSlot={setTargetSlot} importing={blocked} connection={connection} health={health} fixtures={fixtures} fixture={fixture} setFixture={setFixture} onRetry={retry}/><div className={"studio-center "+(state.selectedId||imported?"loaded":"empty")}><input ref={glbInput} hidden aria-label="Choose GLB file" type="file" accept=".glb,model/gltf-binary" onChange={e=>{openGLB(e.target.files?.[0]);e.target.value='';}}/><ModelStage state={state} imported={imported} onCloseImported={()=>setImported(null)} onImportGLB={()=>glbInput.current?.click()}/><PhotoTiles state={state} blocked={blocked||state.busy} upload={addFiles} review={setReviewId} dispatch={action}/></div><SessionHistory state={state} dispatch={action} onReview={setReviewId} onReset={reset} targetSlot={targetSlot} setTargetSlot={setTargetSlot} importing={blocked}/></main>{tab==="studio"&&<nav className="phone-nav" aria-label="Studio panels">{["capture","model","versions"].map(t=><button key={t} aria-pressed={mobile===t} onClick={()=>setMobile(t)}>{t}</button>)}</nav>}
     <div hidden={tab!=='lab'}><ResearchLab/></div>
     {notice&&<div className="review-toast" role="status">{notice}</div>}
     {review&&<PhotoReview pending={reviewWorkflow(state,health).pending} onNext={setReviewId} photo={review} photos={state.photos} dispatch={action} onClose={()=>setReviewId(null)} onConfirm={confirm} importing={working}/>}</div>;

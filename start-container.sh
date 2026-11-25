@@ -5,7 +5,7 @@ python -m uvicorn orbit_backend.api:app_factory --factory --host 127.0.0.1 --por
 api=$!
 python -m orbit_backend.worker --role cpu &
 worker=$!
-node orbit/node_modules/next/dist/bin/next start orbit --hostname 0.0.0.0 --port 3000 &
+node orbit/node_modules/next/dist/bin/next start orbit --hostname :: --port 3000 &
 frontend=$!
 cleanup() {
   kill "$api" "$worker" "$frontend" 2>/dev/null || true

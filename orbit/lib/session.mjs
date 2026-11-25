@@ -1,6 +1,7 @@
 import {backendProblem} from './api.mjs';
-export const SLOTS = ['front', 'left', 'back', 'right'];
-export const SLOT_NAMES = {front: 'Front', left: 'Left side', back: 'Opposite side', right: 'Right side'};
+import {MODEL_ROLES} from './reconstruction.mjs';
+export const SLOTS = ['front', 'left', 'back', 'right', 'top'];
+export const SLOT_NAMES = {front: 'Front', left: 'Left side', back: 'Opposite side', right: 'Right side', top: 'Overhead'};
 export function initialSession() {
   return {reconstructionMode:"multiview",photos: [], versions: [], selectedId: null, budget: 3, settings: {seeds: 1, steps: 30, octree: 256}, guidance: false, busy: false, progress: 0, message: ''};
 }
@@ -26,11 +27,11 @@ export function sessionReducer(state, action) {
   if (state.busy && !['LOAD', 'PROGRESS', 'FINISH', 'FAIL', 'MESSAGE'].includes(action.type)) return state;
   switch (action.type) {
     case 'RECONSTRUCTION_MODE': return ['front_only','multiview'].includes(action.value)?{...state,reconstructionMode:action.value}:state;
-    case 'RECONSTRUCTION_PHOTO': return ['front','left','right'].includes(action.role)?{...state,reconstructionPhotos:{...state.reconstructionPhotos,[action.role]:action.id}}:state;
+    case 'RECONSTRUCTION_PHOTO': return MODEL_ROLES.includes(action.role)?{...state,reconstructionPhotos:{...state.reconstructionPhotos,[action.role]:action.id}}:state;
     case 'LOAD': return {...state,...action.session,server:true,message:action.text??state.message};
     case 'MESSAGE': return {...state, message: action.text};
     case 'BUDGET': {
-      if (![2,3,4].includes(action.value)) return state;
+      if (![2,3,4,5].includes(action.value)) return state;
       return action.value < state.photos.length ? {...state, message: 'Remove photos before lowering the budget.'} : {...state, budget: action.value, message: ''};
     }
     case 'ADD': {
